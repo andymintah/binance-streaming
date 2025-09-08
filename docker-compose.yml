@@ -1,0 +1,49 @@
+version: "3.9"
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.12
+    command:
+      - redpanda start
+      - --overprovisioned
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info", "-X", "brokers=redpanda:9092"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.6.1
+    depends_on: [redpanda]
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8080:8080"
+
+  producer:
+    build: .
+    image: crypto-producer:latest
+    depends_on: [redpanda]
+    command: ["python", "producer/producer.py"]
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+
+  consumer:
+    build: .
+    image: crypto-consumer:latest
+    depends_on: [redpanda]
+    command: ["python", "consumer/consumer.py"]
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      PYTHONPATH: /app
+
